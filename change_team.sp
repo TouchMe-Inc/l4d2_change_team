@@ -1,8 +1,8 @@
-#pragma semicolon 1
-#pragma newdecls required
-
 #include <sourcemod>
 #include <sdktools>
+
+#pragma semicolon 1
+#pragma newdecls required
 
 #define TIMER_DELAY 5.0
 
