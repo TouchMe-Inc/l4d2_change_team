@@ -66,17 +66,17 @@ public void OnPluginStart()
 {
 	// TurnClientToSpectate
 	for (int i = 0; i < sizeof(g_sCmdAliasSpectate); i++) {
-		RegConsoleCmd(g_sCmdAliasSpectate[i], TurnClientToSpectate);
+		RegConsoleCmd(g_sCmdAliasSpectate[i], Cmd_TurnClientToSpectate);
 	}
 
 	// TurnClientToSurvivors
 	for (int i = 0; i < sizeof(g_sCmdAliasSurvivors); i++) {
-		RegConsoleCmd(g_sCmdAliasSurvivors[i], TurnClientToSurvivors);
+		RegConsoleCmd(g_sCmdAliasSurvivors[i], Cmd_TurnClientToSurvivors);
 	}
 
 	// TurnClientToInfected
 	for (int i = 0; i < sizeof(g_sCmdAliasInfected); i++) {
-		RegConsoleCmd(g_sCmdAliasInfected[i], TurnClientToInfected);
+		RegConsoleCmd(g_sCmdAliasInfected[i], Cmd_TurnClientToInfected);
 	}
 
 	HookEvent("scavenge_round_start", Event_RoundStart, EventHookMode_PostNoCopy);
@@ -127,10 +127,7 @@ public void OnClientConnected(int iClient) {
 	}
 }
 
-/*
-* ACTION
-*/
-public Action TurnClientToSpectate(int iClient, int iArgs)
+public Action Cmd_TurnClientToSpectate(int iClient, int iArgs)
 {
 	if (iClient == 0) {
 		return Plugin_Handled;
@@ -142,10 +139,8 @@ public Action TurnClientToSpectate(int iClient, int iArgs)
 	return Plugin_Handled;
 }
 
-/*
-* ACTION
-*/
-public Action TurnClientToSurvivors(int iClient, int iArgs)
+
+public Action Cmd_TurnClientToSurvivors(int iClient, int iArgs)
 {
 	if (iClient == 0) {
 		return Plugin_Handled;
@@ -156,10 +151,8 @@ public Action TurnClientToSurvivors(int iClient, int iArgs)
 	return Plugin_Handled;
 }
 
-/*
-* ACTION
-*/
-public Action TurnClientToInfected(int iClient, int iArgs)
+
+public Action Cmd_TurnClientToInfected(int iClient, int iArgs)
 {
 	if (iClient == 0 || g_iGameMode == L4D2Gamemode_Survival || g_iGameMode == L4D2Gamemode_Coop) {
 		return Plugin_Handled;
@@ -252,9 +245,6 @@ public void RespectateClient(int iClient)
 	CreateTimer(0.1, Timer_TurnClientToSpectate, iClient, TIMER_FLAG_NO_MAPCHANGE);
 }
 
-/*
-* TIMER FOR EVENT
-*/
 public Action Timer_TurnClientToSpectate(Handle timer, int iClient)
 {
 	ChangeClientTeamEx(iClient, L4D2Team_Spectator);
