@@ -7,18 +7,18 @@
 #define TIMER_DELAY 5.0
 
 static const char g_sCmdAliasSpectate[][] = { 
-	"sm_spec",
+    	"sm_spec",
 	"sm_s" 
 };
 
 static const char g_sCmdAliasSurvivors[][] = { 
-	"sm_survival",
+	"sm_surv",
 	"sm_js",
 	"sm_join"
 };
 
 static const char g_sCmdAliasInfected[][] = { 
-	"sm_infected",
+	"sm_infect",
 	"sm_ji" 
 };
 
@@ -47,13 +47,13 @@ public Plugin myinfo = {
 	name = "ChangeTeam",
 	author = "TouchMe",
 	description = "Change team with commands: spec, js, ji and etc",
-	version = "1.0",
+	version = "1.0"
 };
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	EngineVersion engine = GetEngineVersion();
-	
+
 	if (engine != Engine_Left4Dead2) {
 		strcopy(error, err_max, "Plugin only supports Left 4 Dead 2.");
 		return APLRes_SilentFailure;
@@ -113,12 +113,12 @@ public void OnMapEnd()
 
 public void ConVarChange_CvarGameMode(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-	CheckGameMode();
+	UpdateGameMode();
 }
 
 public void OnConfigsExecuted()
 {
-	CheckGameMode();
+	UpdateGameMode();
 }
 
 public void OnClientConnected(int iClient) {
@@ -215,39 +215,25 @@ public int FindSurvivorBot()
 	return -1;
 }
 
-public void CheckGameMode()
+public void UpdateGameMode()
 {
 	if (g_bMapStarted == false) {
 		g_iGameMode = L4D2Gamemode_None;
 		return;
 	}
 		
-	int entity = CreateEntityByName("info_gamemode");
-	if (IsValidEntity(entity))
-	{
-		DispatchSpawn(entity);
-		HookSingleEntityOutput(entity, "OnCoop", OnGamemode, true);
-		HookSingleEntityOutput(entity, "OnSurvival", OnGamemode, true);
-		HookSingleEntityOutput(entity, "OnVersus", OnGamemode, true);
-		HookSingleEntityOutput(entity, "OnScavenge", OnGamemode, true);
-		ActivateEntity(entity);
-		AcceptEntityInput(entity, "PostSpawnActivate");
-		if (IsValidEntity(entity)) {// Because sometimes "PostSpawnActivate" seems to kill the ent.
-			RemoveEdict(entity); // Because multiple plugins creating at once, avoid too many duplicate ents in the same frame
-		}
-	}
-}
+	char GameMode[32];
+	GetConVarString(FindConVar("mp_gamemode"), GameMode, 32);
 
-public void OnGamemode(const char[] output, int caller, int activator, float delay)
-{
-	if(strcmp(output, "OnCoop") == 0)
-		g_iGameMode = L4D2Gamemode_Coop;
-	else if(strcmp(output, "OnSurvival") == 0)
-		g_iGameMode = L4D2Gamemode_Survival;
-	else if(strcmp(output, "OnVersus") == 0)
+	if (StrContains(GameMode, "versus", false) != -1) {
 		g_iGameMode = L4D2Gamemode_Versus;
-	else if(strcmp(output, "OnScavenge") == 0)
+	} else if (StrContains(GameMode, "coop", false) != -1) {
+		g_iGameMode = L4D2Gamemode_Coop;
+	} else if (StrContains(GameMode, "survival", false) != -1) {
+		g_iGameMode = L4D2Gamemode_Survival;
+	} else if (StrContains(GameMode, "scavenge", false) != -1) {
 		g_iGameMode = L4D2Gamemode_Scavenge;
+	}
 }
 
 /*
