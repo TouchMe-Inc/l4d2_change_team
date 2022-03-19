@@ -1,13 +1,16 @@
 #include <sourcemod>
 #include <sdktools>
 
+forward void OnMixStarted();
+forward void OnMixStopped();
+
 #pragma semicolon 1
 #pragma newdecls required
 
 #define TIMER_DELAY 3.0
 
 static const char g_sCmdAliasSpectate[][] = { 
-    	"sm_spec",
+	"sm_spec",
 	"sm_s",
 	"sm_afk"
 };
@@ -41,13 +44,14 @@ enum
 }
 
 bool g_bRoundStarted = false;
+bool g_bMixStarted = false;
 int g_iGameMode = L4D2Gamemode_None;
 
 public Plugin myinfo = { 
 	name = "ChangeTeam",
 	author = "TouchMe",
 	description = "Change team with commands: spec, js, ji and etc",
-	version = "1.0.1"
+	version = "1.1.0"
 };
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -220,13 +224,16 @@ public void RespectateClient(int iClient)
 	CreateTimer(0.1, Timer_TurnClientToSpectate, iClient, TIMER_FLAG_NO_MAPCHANGE);
 }
 
-public Action Timer_TurnClientToSpectate(Handle timer, int iClient)
-{
+public Action Timer_TurnClientToSpectate(Handle timer, int iClient) {
 	ChangeClientTeamEx(iClient, L4D2Team_Spectator);
 }
 
 int GetFreeSlots(L4D2Team team) 
 {
+	if (g_bMixStarted) {
+		return 0;
+	}
+
 	int iSlots = 0;
 	if (team == L4D2Team_Infected) {
 		iSlots = GetConVarInt(FindConVar("z_max_player_zombies")); // TODO: move to global param
@@ -251,4 +258,12 @@ int GetFreeSlots(L4D2Team team)
 	}
 
 	return (iSlots - iPlayers);
+}
+
+public void OnMixStarted() {
+	g_bMixStarted = true;
+}
+
+public void OnMixStopped() {
+	g_bMixStarted = false;
 }
