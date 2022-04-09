@@ -1,6 +1,5 @@
 #include <sourcemod>
 #include <sdktools>
-#include <mix_team>
 
 #undef REQUIRE_PLUGIN
 #include <mix_team>
