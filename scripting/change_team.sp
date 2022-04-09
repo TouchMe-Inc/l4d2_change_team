@@ -1,23 +1,40 @@
 #include <sourcemod>
 #include <sdktools>
+#include <mix_team>
 
-forward void OnMixStarted();
-forward void OnMixStopped();
+#undef REQUIRE_PLUGIN
+#include <mix_team>
+#define LIB_MIX_TEAM            "mix_team" 
 
-#pragma semicolon 1
-#pragma newdecls required
+#pragma semicolon               1
+#pragma newdecls                required
 
-#define TEAM_SPECTATOR 1
-#define TEAM_SURVIVOR 2 
-#define TEAM_INFECTED 3
 
-#define GAMEMODE_NONE 0
-#define GAMEMODE_COOP 1
-#define GAMEMODE_VERSUS 2
-#define GAMEMODE_SCAVENGE 3
-#define GAMEMODE_SURVIVAL 4
+public Plugin myinfo = { 
+	name = "ChangeTeam",
+	author = "TouchMe",
+	description = "Change team with commands: spec, js, ji and etc",
+	version = "1.0rc"
+};
 
-#define TIMER_DELAY 3.0
+
+#define TEAM_SPECTATOR          1
+#define TEAM_SURVIVOR           2 
+#define TEAM_INFECTED           3
+
+#define GAMEMODE_NONE           0
+#define GAMEMODE_COOP           1
+#define GAMEMODE_VERSUS         2
+#define GAMEMODE_SCAVENGE       3
+#define GAMEMODE_SURVIVAL       4
+
+#define IS_VALID_CLIENT(%1)     (%1 > 0 && %1 <= MaxClients)
+#define IS_REAL_CLIENT(%1)      (IsClientInGame(%1) && !IsFakeClient(%1))
+#define IS_SURVIVOR(%1)         (GetClientTeam(%1) == TEAM_SURVIVOR)
+#define IS_SPECTATOR(%1)        (GetClientTeam(%1) == TEAM_SPECTATOR)
+
+#define TIMER_DELAY 5.0
+
 
 static const char g_sCmdAliasSpectate[][] = { 
 	"sm_spec",
@@ -36,18 +53,21 @@ static const char g_sCmdAliasInfected[][] = {
 	"sm_ji" 
 };
 
+bool 
+	g_bRoundStarted = false,
+	g_bMixTeamUpAvailable = false;
 
-bool g_bRoundStarted = false;
-bool g_bMixStarted = false;
 int g_iGameMode = GAMEMODE_NONE;
 
-public Plugin myinfo = { 
-	name = "ChangeTeam",
-	author = "TouchMe",
-	description = "Change team with commands: spec, js, ji and etc",
-	version = "1.1.1"
-};
-
+/**
+ * Called before OnPluginStart.
+ * 
+ * @param myself      Handle to the plugin
+ * @param late        Whether or not the plugin was loaded "late" (after map load)
+ * @param error       Error message buffer in case load failed
+ * @param err_max     Maximum number of characters for error message buffer
+ * @return            APLRes_Success | APLRes_SilentFailure 
+ */
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	EngineVersion engine = GetEngineVersion();
@@ -60,7 +80,60 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	return APLRes_Success;
 }
 
+/**
+ * Called when the plugin is fully initialized and all known external references are resolved.
+ * 
+ * @noreturn
+ */
 public void OnPluginStart()
+{
+	InitCmds();
+	InitEvents();
+}
+
+/**
+  * Global event. Called when all plugins loaded.
+  *
+  * @noreturn
+  */
+public void OnAllPluginsLoaded() {
+	g_bMixTeamUpAvailable = LibraryExists(LIB_MIX_TEAM);
+}
+
+/**
+  * Global event. Called when a library is removed.
+  *
+  * @param sName     Library name
+  *
+  * @noreturn
+  */
+public void OnLibraryRemoved(const char[] sName) 
+{
+	if (StrEqual(sName, LIB_MIX_TEAM)) {
+		g_bMixTeamUpAvailable = false;
+	}
+}
+
+/**
+  * Global event. Called when a library is added.
+  *
+  * @param sName     Library name
+  *
+  * @noreturn
+  */
+public void OnLibraryAdded(const char[] sName)
+{
+	if (StrEqual(sName, LIB_MIX_TEAM)) {
+		g_bMixTeamUpAvailable = true;
+	}
+}
+
+/**
+ * Fragment
+ * 
+ * @noreturn
+ */
+void InitCmds() 
 {
 	// Cmd_TurnClientToSpectate
 	for (int i = 0; i < sizeof(g_sCmdAliasSpectate); i++) {
@@ -76,39 +149,73 @@ public void OnPluginStart()
 	for (int i = 0; i < sizeof(g_sCmdAliasInfected); i++) {
 		RegConsoleCmd(g_sCmdAliasInfected[i], Cmd_TurnClientToInfected);
 	}
+}
 
+/**
+ * Fragment
+ * 
+ * @noreturn
+ */
+void InitEvents() 
+{
 	HookEvent("scavenge_round_start", Event_RoundStart, EventHookMode_PostNoCopy);
 	HookEvent("versus_round_start", Event_RoundStart, EventHookMode_PostNoCopy);
 	HookEvent("round_end", Event_RoundEnd, EventHookMode_PostNoCopy);
 }
 
+/**
+ * Round start event.
+ */
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) 
 {
 	for( int iClient = 1; iClient <= MaxClients; iClient++ )
 	{
-		if (IsClientInGame(iClient) && IsSpectator(iClient)) {
-			RespectateClient(iClient);
+		if (!IS_REAL_CLIENT(iClient) || !IS_SPECTATOR(iClient)) {
+			continue;
 		}
+
+		RespectateClient(iClient);
 	}
 
 	g_bRoundStarted = true;
 }
 
+/**
+ * Round end event.
+ */
 public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast) 
 {
 	g_bRoundStarted = false;
 }
 
-public void ConVarChange_CvarGameMode(ConVar convar, const char[] oldValue, const char[] newValue)
-{
+/**
+ * Called when a console variable's value is changed.
+ * 
+ * @param convar       Handle to the convar that was changed
+ * @param oldValue     String containing the value of the convar before it was changed
+ * @param newValue     String containing the new value of the convar
+ * @noreturn
+ */
+public void ConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
 	UpdateGameMode();
 }
 
-public void OnConfigsExecuted()
-{
+/**
+ * Called when the map has loaded, servercfgfile (server.cfg) has been executed, and all plugin configs are done executing.
+ * This will always be called once and only once per map. It will be called after OnMapStart().
+ * 
+ * @noreturn
+*/
+public void OnConfigsExecuted() {
 	UpdateGameMode();
 }
 
+/**
+ * Called once a client successfully connects.  This callback is paired with OnClientDisconnect.
+ * 
+ * @param iClient     Client indedx
+ * @noreturn
+ */
 public void OnClientConnected(int iClient) 
 {
 	if (g_bRoundStarted) {
@@ -118,7 +225,7 @@ public void OnClientConnected(int iClient)
 
 public Action Cmd_TurnClientToSpectate(int iClient, int iArgs)
 {
-	if (!iClient) {
+	if (!IS_VALID_CLIENT(iClient)) {
 		return Plugin_Handled;
 	}
 
@@ -129,11 +236,11 @@ public Action Cmd_TurnClientToSpectate(int iClient, int iArgs)
 
 public Action Cmd_TurnClientToSurvivors(int iClient, int iArgs)
 {
-	if (!iClient) {
+	if (!IS_VALID_CLIENT(iClient)) {
 		return Plugin_Handled;
 	}
 
-	if (g_bMixStarted) {
+	if (g_bMixTeamUpAvailable && IsMixTeam()) {
 		return Plugin_Handled;
 	}
 
@@ -146,7 +253,7 @@ public Action Cmd_TurnClientToSurvivors(int iClient, int iArgs)
 
 public Action Cmd_TurnClientToInfected(int iClient, int iArgs)
 {
-	if (!iClient) {
+	if (!IS_VALID_CLIENT(iClient)) {
 		return Plugin_Handled;
 	}
 
@@ -154,7 +261,7 @@ public Action Cmd_TurnClientToInfected(int iClient, int iArgs)
 		return Plugin_Handled;
 	}
 
-	if (g_bMixStarted) {
+	if (g_bMixTeamUpAvailable && IsMixTeam()) {
 		return Plugin_Handled;
 	}
 
@@ -165,8 +272,19 @@ public Action Cmd_TurnClientToInfected(int iClient, int iArgs)
 	return Plugin_Handled;
 }
 
+/**
+ * Sets the client team.
+ * 
+ * @param iClient     Client index
+ * @param iTeam       Param description
+ * @return            true if success
+ */
 bool SetClientTeam(int iClient, int iTeam)
-{
+{	
+	if (!IS_VALID_CLIENT(iClient)) {
+		return false;
+	}
+
 	if (GetClientTeam(iClient) == iTeam) {
 		return true;
 	}
@@ -187,11 +305,16 @@ bool SetClientTeam(int iClient, int iTeam)
 	return false;
 }
 
+/**
+ * Finds a free bot.
+ * 
+ * @return     Bot index or -1
+ */
 int FindSurvivorBot()
 {
 	for (int iClient = 1; iClient <= MaxClients; iClient++)
 	{
-		if (IsClientInGame(iClient) && IsFakeClient(iClient) && IsSurvivor(iClient))
+		if (IsClientInGame(iClient) && IsFakeClient(iClient) && IS_SURVIVOR(iClient))
 		{
 			return iClient;
 		}
@@ -200,17 +323,9 @@ int FindSurvivorBot()
 	return -1;
 }
 
-bool IsSurvivor(int iClient) {
-	return GetClientTeam(iClient) == TEAM_SURVIVOR;
-}
-
-bool IsSpectator(int iClient) {
-	return GetClientTeam(iClient) == TEAM_SPECTATOR;
-}
-
 void UpdateGameMode()
 {
-	char sGameMode[32];
+	char sGameMode[16];
 	GetConVarString(FindConVar("mp_gamemode"), sGameMode, sizeof(sGameMode));
 
 	if (StrContains(sGameMode, "versus", false) != -1) {
@@ -226,7 +341,7 @@ void UpdateGameMode()
 
 public Action Timer_RespectateClient(Handle timer, int iClient)
 {
-	if (IsClientInGame(iClient) && IsSpectator(iClient)) {
+	if (IS_REAL_CLIENT(iClient) && IS_SPECTATOR(iClient)) {
 		RespectateClient(iClient);
 	}
 }
@@ -238,43 +353,24 @@ void RespectateClient(int iClient)
 }
 
 public Action Timer_TurnClientToSpectate(Handle timer, int iClient) {
-	SetClientTeam(iClient, TEAM_SPECTATOR);
+	if (IS_REAL_CLIENT(iClient)) {
+		SetClientTeam(iClient, TEAM_SPECTATOR);
+	}
 }
 
 int GetFreeSlots(int iTeam) 
 {
-	int iClient;
-
-	int iSlots = 0;
-	if (iTeam == TEAM_INFECTED) {
-		iSlots = GetConVarInt(FindConVar("z_max_player_zombies")); // TODO: move to global param
-	}
-	else if (iTeam == TEAM_SURVIVOR) 
-	{
-		for(iClient = 1; iClient <= MaxClients; iClient++)
-		{
-			if (IsClientInGame(iClient) && GetClientTeam(iClient) == iTeam) {
-				iSlots++;
-			}
-		}
-	}
+	int iSlots = GetConVarInt(FindConVar("survivor_limit"));
 
 	int iPlayers = 0;
-	for(iClient = 1; iClient <= MaxClients; iClient++)
+	for(int iClient = 1; iClient <= MaxClients; iClient++)
 	{
-		if(IsClientInGame(iClient) && !IsFakeClient(iClient) && GetClientTeam(iClient) == iTeam)
-		{
-			iPlayers++;
+		if(!IS_REAL_CLIENT(iClient) || GetClientTeam(iClient) != iTeam) {
+			continue;
 		}
+
+		iPlayers++;
 	}
 
 	return (iSlots - iPlayers);
-}
-
-public void OnMixStarted() {
-	g_bMixStarted = true;
-}
-
-public void OnMixStopped() {
-	g_bMixStarted = false;
 }
