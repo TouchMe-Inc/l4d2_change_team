@@ -1,4 +1,5 @@
 # l4d2_change_team
+The plugin allows you to change the team using chat commands
 
-## Support 
-[https://github.com/TouchMe-Inc/l4d2_mix_team](mix_team)
+## Support
+[Mix team](https://github.com/TouchMe-Inc/l4d2_mix_team)
